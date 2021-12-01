@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:component-scan base-package="com.wasu.springmvc" />
+
+    <context:property-placeholder location="classpath:jdbc.properties" />
+
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource" init-method="init" destroy-method="close">
+        <property name="driverClassName" value="${jdbc.driver}" />
+        <property name="url" value="${jdbc.url}" />
+        <property name="username" value="${jdbc.username}" />
+        <property name="password" value="${jdbc.password}" />
+    </bean>
+
+    <bean id="factory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource" />
+        <property name="configLocation" value="classpath:mybatis.xml" />
+    </bean>
+
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="sqlSessionFactoryBeanName" value="factory" />
+        <property name="basePackage" value="com.wasu.springmvc.dao" />
+    </bean>
+
+    <!-- 1 将任务对象配置在IOC容器环境中 -->
+    <bean id="quartzJob" class="com.wasu.springmvc.util.DataBackup"/>
+
+    <!-- 2 描述任务细节 接下来需要调度的任务内容由哪个对象提供 该对象中的哪个方法提供 -->
+    <bean id="jobTask" class="org.springframework.scheduling.quartz.MethodInvokingJobDetailFactoryBean">
+        <property name="targetObject" ref="quartzJob"/>
+        <property name="targetMethod" value="backup"/>
+        <property name="concurrent" value="false"/>
+    </bean>
+
+    <!-- 3 配置触发器trigger 为需要调度的任务设置触发的时间、周期 -->
+    <bean id="trigger" class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+        <property name="jobDetail" ref="jobTask"/>
+        <property name="cronExpression" value="*/5 * * * * ?"/>
+
+    </bean>
+
+    <!-- 4 配置总调度类 统一对触发器进行调度触发 -->
+    <bean id="taskManager" lazy-init="false" autowire="no" class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+        <property name="triggers">
+            <list>
+                <ref bean="trigger"/>
+            </list>
+        </property>
+    </bean>
+</beans>
